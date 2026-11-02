@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- WPF Fluent theme (ThemeMode) and WinForms dark mode are still marked experimental -->
+    <NoWarn>$(NoWarn);WPF0001;WFO5001</NoWarn>
+    <AssemblyName>G5Control</AssemblyName>
+    <RootNamespace>G5Control</RootNamespace>
+    <Version>1.1.0</Version>
+    <!-- Regenerate with make-icon.ps1 -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="register.json" />
+    <Resource Include="app.ico" />
+  </ItemGroup>
+
+</Project>
