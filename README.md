@@ -33,3 +33,9 @@ Das Icon wird mit `make-icon.ps1` erzeugt (`-Preview pfad.png` rendert eine Vors
 ## Technik
 
 Die App spricht das SSAP-Protokoll über `wss://<tv>:3001`. Einstellungen werden über `luna://com.webos.settingsservice/setSystemSettings` geschrieben, verpackt in eine kurz geöffnete Systemmeldung. Das Registrierungs-Manifest in `register.json` stammt aus [ColorControl](https://github.com/Maassoft/ColorControl), weil webOS 26 ältere Manifeste ablehnt.
+
+## Lizenz
+
+Copyright (C) 2026 frankyfife
+
+G5Control steht unter der [GNU General Public License v3.0](LICENSE), wie ColorControl, aus dem `register.json` übernommen ist.
