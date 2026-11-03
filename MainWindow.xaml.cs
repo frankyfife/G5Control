@@ -12,7 +12,10 @@ namespace G5Control;
 public partial class MainWindow : Window
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    // Explorer skips Run entries that have no "enabled" record here (the same flag Task Manager toggles).
+    const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     const string RunValue = "G5Control";
+    static readonly byte[] ApprovedEnabled = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     readonly PresetItem[] _items;
     bool _busy;
@@ -26,8 +29,15 @@ public partial class MainWindow : Window
         PresetList.ItemsSource = _items;
         MarkActive(Presets.LoadActive());
 
+        AutostartBox.IsChecked = IsAutostartEnabled();
+    }
+
+    static bool IsAutostartEnabled()
+    {
         using var run = Registry.CurrentUser.OpenSubKey(RunKey);
-        AutostartBox.IsChecked = run?.GetValue(RunValue) != null;
+        using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey);
+        // An odd first byte means the entry was disabled, e.g. in Task Manager.
+        return run?.GetValue(RunValue) != null && approved?.GetValue(RunValue) is byte[] { Length: > 0 } flags && (flags[0] & 1) == 0;
     }
 
     async void Preset_Click(object sender, RoutedEventArgs e)
@@ -124,13 +134,16 @@ public partial class MainWindow : Window
     void Autostart_Changed(object sender, RoutedEventArgs e)
     {
         using var run = Registry.CurrentUser.CreateSubKey(RunKey);
+        using var approved = Registry.CurrentUser.CreateSubKey(ApprovedKey);
         if (AutostartBox.IsChecked == true)
         {
             run.SetValue(RunValue, $"\"{Environment.ProcessPath}\" --tray");
+            approved.SetValue(RunValue, ApprovedEnabled, RegistryValueKind.Binary);
         }
-        else if (run.GetValue(RunValue) != null)
+        else
         {
-            run.DeleteValue(RunValue);
+            run.DeleteValue(RunValue, throwOnMissingValue: false);
+            approved.DeleteValue(RunValue, throwOnMissingValue: false);
         }
     }
 
