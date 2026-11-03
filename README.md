@@ -14,7 +14,7 @@ Nach jedem Preset liest die App Bildmodus, Helligkeit und Energiesparen zurück 
 ## Bedienung
 
 - Linksklick aufs Tray-Icon öffnet das Fenster, Rechtsklick zeigt die Presets direkt.
-- „Mit Windows starten“ legt einen Autostart-Eintrag an (startet nur im Tray).
+- „Mit Windows starten“ legt eine Verknüpfung im Autostart-Ordner an (startet nur im Tray). Ein- und ausschalten geht auch im Task-Manager unter „Autostart-Apps“.
 - Beim ersten Verbinden fragt der Fernseher einmal nach der Kopplung. Der Schlüssel landet in `%APPDATA%\G5Control\clientkey.txt`.
 
 ## Voraussetzungen
