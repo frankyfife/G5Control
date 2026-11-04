@@ -1,10 +1,13 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace G5Control;
 
@@ -22,6 +25,7 @@ public partial class MainWindow : Window
         PresetList.ItemsSource = _items;
         MarkActive(Presets.LoadActive());
 
+        IpBox.Text = LgTv.SavedIp ?? "";
         Autostart.MigrateLegacy();
         AutostartBox.IsChecked = Autostart.IsEnabled;
     }
@@ -79,6 +83,7 @@ public partial class MainWindow : Window
     async Task ReadStatusAsync()
     {
         await using var tv = await LgTv.ConnectAsync();
+        IpBox.Text = LgTv.SavedIp ?? "";
         var settings = await tv.GetPictureSettingsAsync();
         var mode = (string?)settings["pictureMode"] switch
         {
@@ -114,9 +119,58 @@ public partial class MainWindow : Window
     static string Describe(Exception ex) => ex switch
     {
         OperationCanceledException or System.Net.WebSockets.WebSocketException =>
-            "Fernseher nicht erreichbar – ist der G5 an?",
+            LgTv.SavedIp is { } ip
+                ? $"Fernseher unter {ip} nicht erreichbar und im Netzwerk nicht gefunden – ist der G5 an?"
+                : "Kein Fernseher im Netzwerk gefunden – ist der G5 an? Die IP lässt sich unter „Verbindung“ eintragen.",
         _ => ex.Message,
     };
+
+    async void SaveIp_Click(object sender, RoutedEventArgs e) => await SaveIpAsync();
+
+    async void IpBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            await SaveIpAsync();
+        }
+    }
+
+    async Task SaveIpAsync()
+    {
+        var text = IpBox.Text.Trim();
+        if (!IPAddress.TryParse(text, out var ip) || ip.AddressFamily != AddressFamily.InterNetwork)
+        {
+            StatusText.Text = $"„{text}“ ist keine gültige IP-Adresse (z. B. 192.168.178.154).";
+            return;
+        }
+        LgTv.SaveIp(ip.ToString());
+        await RefreshStatusAsync();
+    }
+
+    async void SearchIp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy)
+        {
+            return;
+        }
+        SetBusy(true, "Suche Fernseher im Netzwerk …");
+        string? ip;
+        try
+        {
+            ip = await LgTv.SearchAsync();
+        }
+        finally
+        {
+            SetBusy(false, null);
+        }
+        if (ip == null)
+        {
+            StatusText.Text = "Kein Fernseher im Netzwerk gefunden – ist der G5 an?";
+            return;
+        }
+        IpBox.Text = ip;
+        await RefreshStatusAsync();
+    }
 
     void Autostart_Changed(object sender, RoutedEventArgs e)
     {

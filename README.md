@@ -20,7 +20,7 @@ Nach jedem Preset liest die App Bildmodus, Helligkeit und Energiesparen zurück 
 ## Voraussetzungen
 
 - Windows 10/11 mit [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
-- LG-Fernseher mit webOS 26 im selben Netz. Die App sucht ihn selbst (Port 3001 im lokalen Netz) und merkt sich die Adresse in `%APPDATA%\G5Control\tv.txt`. Ändert sich die Adresse oder kommt ein neuer Fernseher, sucht sie neu und fragt einmal nach der Kopplung. Der Eingang HDMI1 steht fest in `Presets.cs`.
+- LG-Fernseher mit webOS 26 im selben Netz. Die App sucht ihn selbst (Port 3001 im lokalen Netz) und merkt sich die Adresse in `%APPDATA%\G5Control\tv.txt`. Ändert sich die Adresse oder kommt ein neuer Fernseher, sucht sie neu und fragt einmal nach der Kopplung. Unter „Verbindung“ im Fenster lässt sich die IP auch von Hand eintragen oder die Suche anstoßen. Der Eingang HDMI1 steht fest in `Presets.cs`.
 
 ## Presets anpassen
 

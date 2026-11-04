@@ -39,14 +39,7 @@ public sealed class LgTv : IAsyncDisposable
 
     public static async Task<LgTv> ConnectAsync(CancellationToken ct = default)
     {
-        var ip = LoadIp();
-        if (ip == null || !await IsPortOpenAsync(ip, ct))
-        {
-            ip = await FindTvAsync(ct) ?? throw new OperationCanceledException("Kein LG-Fernseher im Netzwerk gefunden.");
-            Directory.CreateDirectory(DataDir);
-            File.WriteAllText(IpFile, ip);
-        }
-
+        var ip = await LocateAsync(ct) ?? throw new OperationCanceledException("Kein LG-Fernseher im Netzwerk gefunden.");
         var tv = new LgTv(ip);
         try
         {
@@ -64,17 +57,59 @@ public sealed class LgTv : IAsyncDisposable
         }
     }
 
-    static string? LoadIp()
+    /// <summary>The saved TV address, entered by hand or found by the last search.</summary>
+    public static string? SavedIp
     {
-        try
+        get
         {
-            var ip = File.Exists(IpFile) ? File.ReadAllText(IpFile).Trim() : "";
-            return ip.Length > 0 ? ip : null;
+            try
+            {
+                var ip = File.Exists(IpFile) ? File.ReadAllText(IpFile).Trim() : "";
+                return ip.Length > 0 ? ip : null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
         }
-        catch (IOException)
+    }
+
+    public static void SaveIp(string ip)
+    {
+        Directory.CreateDirectory(DataDir);
+        File.WriteAllText(IpFile, ip);
+    }
+
+    /// <summary>Searches the local network for the TV and saves its address when found.</summary>
+    public static async Task<string?> SearchAsync(CancellationToken ct = default)
+    {
+        var ip = await FindTvAsync(ct);
+        if (ip != null)
         {
-            return null;
+            SaveIp(ip);
         }
+        return ip;
+    }
+
+    // Right after the TV or the PC wakes up the port can stay closed for a few seconds, so try a few times.
+    static async Task<string?> LocateAsync(CancellationToken ct)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await Task.Delay(2000, ct);
+            }
+            if (SavedIp is { } saved && await IsPortOpenAsync(saved, ct))
+            {
+                return saved;
+            }
+            if (await SearchAsync(ct) is { } found)
+            {
+                return found;
+            }
+        }
+        return null;
     }
 
     static async Task<bool> IsPortOpenAsync(string ip, CancellationToken ct)

@@ -39,6 +39,22 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
+        <Expander Header="Verbindung" Margin="0,4,0,0">
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="IP-Adresse des Fernsehers" Opacity="0.7" />
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="IpBox" VerticalContentAlignment="Center" KeyDown="IpBox_KeyDown" />
+                    <Button Grid.Column="1" Content="Speichern" Click="SaveIp_Click" Margin="8,0,0,0" />
+                    <Button Grid.Column="2" Content="Suchen" Click="SearchIp_Click" Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
         <CheckBox x:Name="AutostartBox" Content="Mit Windows starten (im Tray)" Margin="0,8,0,0"
                   Checked="Autostart_Changed" Unchecked="Autostart_Changed" />
     </StackPanel>
