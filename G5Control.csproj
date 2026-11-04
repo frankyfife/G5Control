@@ -11,7 +11,7 @@
     <NoWarn>$(NoWarn);WPF0001;WFO5001</NoWarn>
     <AssemblyName>G5Control</AssemblyName>
     <RootNamespace>G5Control</RootNamespace>
-    <Version>1.4.0</Version>
+    <Version>1.4.1</Version>
     <!-- Regenerate with make-icon.ps1 -->
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>

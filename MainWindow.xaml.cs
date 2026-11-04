@@ -85,15 +85,33 @@ public partial class MainWindow : Window
         await using var tv = await LgTv.ConnectAsync();
         IpBox.Text = LgTv.SavedIp ?? "";
         var settings = await tv.GetPictureSettingsAsync();
-        var mode = (string?)settings["pictureMode"] switch
+        var mode = PictureModeName((string?)settings["pictureMode"]);
+        var saving = (string?)settings["energySaving"] == "off" ? "aus" : (string?)settings["energySaving"];
+        StatusText.Text = $"Helligkeit {settings["backlight"]} · Bildmodus {mode} · Energiesparen {saving}";
+
+        // The TV keeps values per picture mode, so after an SDR/HDR switch (or a change with the remote)
+        // the last applied preset may no longer be what is on screen.
+        if (_items.FirstOrDefault(i => i.IsActive) is { } active && !active.Preset.Matches(settings))
+        {
+            MarkActive(null);
+            StatusText.Text += $"\nPasst nicht mehr zu „{active.Name}“ – z. B. nach Wechsel zwischen SDR und HDR. Preset erneut wählen.";
+        }
+    }
+
+    // HDR signals use their own modes ("hdrGame", "hdrStandard"); energy saving "max" switches to standard.
+    static string? PictureModeName(string? mode)
+    {
+        if (mode is { Length: > 3 } && mode.StartsWith("hdr", StringComparison.Ordinal))
+        {
+            return PictureModeName(char.ToLowerInvariant(mode[3]) + mode[4..]) + " (HDR)";
+        }
+        return mode switch
         {
             "game" => "Spiel",
-            "hdrGame" => "Spiel (HDR)",
+            "standard" => "Standard",
             "eco" => "Eco",
             var other => other,
         };
-        var saving = (string?)settings["energySaving"] == "off" ? "aus" : (string?)settings["energySaving"];
-        StatusText.Text = $"Helligkeit {settings["backlight"]} · Bildmodus {mode} · Energiesparen {saving}";
     }
 
     void SetBusy(bool busy, string? status)

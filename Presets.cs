@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +20,11 @@ public sealed record Preset(string Name, string Description, string Glyph, IRead
     public async Task ApplyAsync(CancellationToken ct = default)
     {
         await using var tv = await LgTv.ConnectAsync(ct);
-        foreach (var step in Steps)
+        // Picture settings belong to the current picture mode, and an HDR signal only offers the HDR modes,
+        // so "game" has to become "hdrGame" while the PC sends HDR.
+        var hdr = IsHdr((await tv.GetPictureSettingsAsync(ct))["pictureMode"]?.ToString());
+        var steps = Steps.Select(s => s.Key == "pictureMode" ? s with { Value = ForSignal(s.Value, hdr) } : s).ToList();
+        foreach (var step in steps)
         {
             await tv.SetSettingAsync(step.Key, step.Value, step.Category, ct);
             await Task.Delay(step.DelayMs, ct);
@@ -27,16 +32,14 @@ public sealed record Preset(string Name, string Description, string Glyph, IRead
 
         // While the signal resyncs (VRR/Game Optimizer changes), writes can land in another picture mode
         // context, and energySaving "max" briefly locks the backlight. Re-apply the picture steps until it sticks.
-        var expected = Steps.Where(s => VerifiableKeys.Contains(s.Key)).GroupBy(s => s.Key).ToDictionary(g => g.Key, g => g.Last().Value);
         for (var attempt = 0; attempt < 3; attempt++)
         {
             await Task.Delay(2000, ct);
-            var actual = await tv.GetPictureSettingsAsync(ct);
-            if (expected.All(e => actual[e.Key]?.ToString() == e.Value))
+            if (Matches(await tv.GetPictureSettingsAsync(ct)))
             {
                 return;
             }
-            foreach (var step in Steps.Where(s => !s.Resyncs))
+            foreach (var step in steps.Where(s => !s.Resyncs))
             {
                 await tv.SetSettingAsync(step.Key, step.Value, step.Category, ct);
                 await Task.Delay(step.DelayMs, ct);
@@ -44,6 +47,21 @@ public sealed record Preset(string Name, string Description, string Glyph, IRead
         }
         throw new InvalidOperationException($"{Name}: Der Fernseher hat nicht alle Werte übernommen.");
     }
+
+    /// <summary>Whether the TV's readable picture values are the ones this preset sets.</summary>
+    public bool Matches(JsonObject actual)
+    {
+        var hdr = IsHdr(actual["pictureMode"]?.ToString());
+        return Steps.Where(s => VerifiableKeys.Contains(s.Key))
+            .GroupBy(s => s.Key)
+            .Select(g => g.Last())
+            .All(s => actual[s.Key]?.ToString() == (s.Key == "pictureMode" ? ForSignal(s.Value, hdr) : s.Value));
+    }
+
+    static bool IsHdr(string? pictureMode) => pictureMode?.StartsWith("hdr", StringComparison.Ordinal) == true;
+
+    static string ForSignal(string pictureMode, bool hdr) =>
+        hdr && !IsHdr(pictureMode) ? "hdr" + char.ToUpperInvariant(pictureMode[0]) + pictureMode[1..] : pictureMode;
 }
 
 public static class Presets
