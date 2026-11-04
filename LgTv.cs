@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Reflection;
 using System.Text;
@@ -15,30 +18,41 @@ namespace G5Control;
 /// </summary>
 public sealed class LgTv : IAsyncDisposable
 {
-    public const string Ip = "192.168.178.41";
+    const int Port = 3001;
 
-    static readonly string AppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-    public static readonly string DataDir = Path.Combine(AppData, "G5Control");
-    static readonly string KeyFile = Path.Combine(DataDir, "clientkey.txt");
-    // Same manifest as ColorControl, so its existing pairing can be reused without a new prompt on the TV.
-    static readonly string ColorControlKeyFile = Path.Combine(AppData, "Maassoft", "ColorControl", $"{Ip}_ClientKey.txt");
+    public static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "G5Control");
+    // IP of the TV found last; when it no longer answers, the local network is searched again.
+    static readonly string IpFile = Path.Combine(DataDir, "tv.txt");
 
     readonly ClientWebSocket _ws = new();
+    readonly string _ip;
     int _nextId;
 
-    LgTv()
+    LgTv(string ip)
     {
+        _ip = ip;
         _ws.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
     }
 
+    // Pairing keys belong to one TV, so a replaced TV asks for a new pairing instead of rejecting the old key.
+    string KeyFile => Path.Combine(DataDir, $"clientkey_{_ip}.txt");
+
     public static async Task<LgTv> ConnectAsync(CancellationToken ct = default)
     {
-        var tv = new LgTv();
+        var ip = LoadIp();
+        if (ip == null || !await IsPortOpenAsync(ip, ct))
+        {
+            ip = await FindTvAsync(ct) ?? throw new OperationCanceledException("Kein LG-Fernseher im Netzwerk gefunden.");
+            Directory.CreateDirectory(DataDir);
+            File.WriteAllText(IpFile, ip);
+        }
+
+        var tv = new LgTv(ip);
         try
         {
             using (var connectTimeout = Timeout(ct, 5))
             {
-                await tv._ws.ConnectAsync(new Uri($"wss://{Ip}:3001"), connectTimeout.Token);
+                await tv._ws.ConnectAsync(new Uri($"wss://{ip}:{Port}"), connectTimeout.Token);
             }
             await tv.RegisterAsync(ct);
             return tv;
@@ -48,6 +62,59 @@ public sealed class LgTv : IAsyncDisposable
             await tv.DisposeAsync();
             throw;
         }
+    }
+
+    static string? LoadIp()
+    {
+        try
+        {
+            var ip = File.Exists(IpFile) ? File.ReadAllText(IpFile).Trim() : "";
+            return ip.Length > 0 ? ip : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    static async Task<bool> IsPortOpenAsync(string ip, CancellationToken ct)
+    {
+        using var client = new TcpClient();
+        using var timeout = Timeout(ct, 2);
+        try
+        {
+            await client.ConnectAsync(ip, Port, timeout.Token);
+            return true;
+        }
+        catch (Exception e) when (e is SocketException or OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Probes every address of the local /24 networks for the TV's SSAP port.</summary>
+    static async Task<string?> FindTvAsync(CancellationToken ct)
+    {
+        var candidates = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork)
+            .Select(a => a.Address.GetAddressBytes())
+            .Where(own => own[0] != 169)  // link-local, no DHCP
+            .SelectMany(own => Enumerable.Range(1, 254).Where(host => host != own[3]).Select(host => $"{own[0]}.{own[1]}.{own[2]}.{host}"))
+            .Distinct()
+            .ToArray();
+        var probes = candidates.Select(async ip => await IsPortOpenAsync(ip, ct) ? ip : null).ToList();
+        while (probes.Count > 0)
+        {
+            var done = await Task.WhenAny(probes);
+            probes.Remove(done);
+            if (await done is { } ip)
+            {
+                return ip;
+            }
+        }
+        return null;
     }
 
     async Task RegisterAsync(CancellationToken ct)
@@ -64,7 +131,15 @@ public sealed class LgTv : IAsyncDisposable
         using var timeout = Timeout(ct, key == null ? 60 : 10);
         while (true)
         {
-            var response = await ReceiveAsync(timeout.Token);
+            JsonNode response;
+            try
+            {
+                response = await ReceiveAsync(timeout.Token);
+            }
+            catch (OperationCanceledException) when (key == null && !ct.IsCancellationRequested)
+            {
+                throw new InvalidOperationException("Kopplung nicht bestätigt – bitte die Anfrage auf dem Fernseher annehmen.");
+            }
             switch ((string?)response["type"])
             {
                 case "registered":
@@ -81,20 +156,10 @@ public sealed class LgTv : IAsyncDisposable
         }
     }
 
-    static string? LoadClientKey()
+    string? LoadClientKey()
     {
-        foreach (var file in new[] { KeyFile, ColorControlKeyFile })
-        {
-            if (File.Exists(file))
-            {
-                var key = File.ReadAllText(file).Trim();
-                if (key.Length > 0)
-                {
-                    return key;
-                }
-            }
-        }
-        return null;
+        var key = File.Exists(KeyFile) ? File.ReadAllText(KeyFile).Trim() : "";
+        return key.Length > 0 ? key : null;
     }
 
     /// <summary>Sets one setting. Keys like "gameMode_hdmi1" become { "gameMode": { "hdmi1": value } }.</summary>

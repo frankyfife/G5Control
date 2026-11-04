@@ -15,12 +15,12 @@ Nach jedem Preset liest die App Bildmodus, Helligkeit und Energiesparen zurück 
 
 - Linksklick aufs Tray-Icon öffnet das Fenster, Rechtsklick zeigt die Presets direkt.
 - „Mit Windows starten“ legt eine Verknüpfung im Autostart-Ordner an (startet nur im Tray). Ein- und ausschalten geht auch im Task-Manager unter „Autostart-Apps“.
-- Beim ersten Verbinden fragt der Fernseher einmal nach der Kopplung. Der Schlüssel landet in `%APPDATA%\G5Control\clientkey.txt`.
+- Beim ersten Verbinden fragt der Fernseher einmal nach der Kopplung. Der Schlüssel landet je Fernseher in `%APPDATA%\G5Control\clientkey_<IP>.txt`.
 
 ## Voraussetzungen
 
 - Windows 10/11 mit [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
-- LG-Fernseher mit webOS 26 im selben Netz. Die IP steht fest in `LgTv.cs` (`Ip`), ebenso der Eingang HDMI1 in `Presets.cs`.
+- LG-Fernseher mit webOS 26 im selben Netz. Die App sucht ihn selbst (Port 3001 im lokalen Netz) und merkt sich die Adresse in `%APPDATA%\G5Control\tv.txt`. Ändert sich die Adresse oder kommt ein neuer Fernseher, sucht sie neu und fragt einmal nach der Kopplung. Der Eingang HDMI1 steht fest in `Presets.cs`.
 
 ## Presets anpassen
 

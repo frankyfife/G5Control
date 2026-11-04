@@ -83,6 +83,7 @@ public partial class MainWindow : Window
         var mode = (string?)settings["pictureMode"] switch
         {
             "game" => "Spiel",
+            "hdrGame" => "Spiel (HDR)",
             "eco" => "Eco",
             var other => other,
         };
